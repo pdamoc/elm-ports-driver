@@ -1,4 +1,4 @@
-module PortsDriver exposing (Driver, Config, Msg(..), Contents(..), install, onFileChange)
+module PortsDriver exposing (Driver, Config, Msg(..), Contents(..), FileOps, install, onFileChange)
 
 {-| This is an Elm package - npm package combo designed to be used to simplify
 some of the ports code usage.
@@ -6,7 +6,7 @@ some of the ports code usage.
 
 # Types
 
-@docs Driver, Msg, Contents
+@docs FileOps, Driver, Msg, Contents
 
 
 # Html.Event Helper
@@ -42,6 +42,9 @@ type Msg
     = File String String Contents
 
 
+{-| An alias for the operations of the file. Each function takes a String `id`
+that will be used to identify the input node.
+-}
 type alias FileOps msg =
     { readAsText : String -> Cmd msg
     , readAsDataURL : String -> Cmd msg

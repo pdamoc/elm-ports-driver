@@ -1,15 +1,17 @@
 {
-    "version": "1.0.0",
+    "version": "1.1.0",
     "summary": "Elm Ports Driver",
     "repository": "https://github.com/pdamoc/elm-ports-driver.git",
     "license": "MIT",
     "source-directories": [
         "src/"
     ],
-    "exposed-modules": ["PortsDriver"],
+    "exposed-modules": [
+        "PortsDriver"
+    ],
     "dependencies": {
         "elm-lang/core": "5.0.0 <= v < 6.0.0",
-        "elm-lang/html": "2.0.0 <= v < 3.0.0" 
+        "elm-lang/html": "2.0.0 <= v < 3.0.0"
     },
     "elm-version": "0.18.0 <= v < 0.19.0"
 }
