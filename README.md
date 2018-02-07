@@ -40,5 +40,7 @@ driver =
 
 ```
 
+The ports MUST BE named `input` and `output`.  
+
 Please see the `example` folder for a full example. 
 

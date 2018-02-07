@@ -1,12 +1,12 @@
 {
     "version": "1.0.0",
-    "summary": "Example using `elm-ports-driver`.",
+    "summary": "Elm Ports Driver",
     "repository": "https://github.com/pdamoc/elm-ports-driver.git",
     "license": "MIT",
     "source-directories": [
         "src/"
     ],
-    "exposed-modules": [],
+    "exposed-modules": ["PortsDriver"],
     "dependencies": {
         "elm-lang/core": "5.0.0 <= v < 6.0.0",
         "elm-lang/html": "2.0.0 <= v < 3.0.0" 

@@ -36,6 +36,6 @@
     "webpack-merge": "^4.1.0"
   },
   "dependencies": {
-    "glyphicons": "^0.2.0"
+    "elm-ports-driver": "^1.0.0" 
   }
 }

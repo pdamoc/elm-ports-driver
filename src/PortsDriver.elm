@@ -1,12 +1,17 @@
 module PortsDriver exposing (Driver, Config, Msg(..), Contents(..), install, onFileChange)
 
-{-| This is an Elm package - npm package combo designed to be used to simply
+{-| This is an Elm package - npm package combo designed to be used to simplify
 some of the ports code usage.
 
 
 # Types
 
-@docs Driver, Context, Msg, Contents
+@docs Driver, Msg, Contents
+
+
+# Html.Event Helper
+
+@docs onFileChange
 
 
 # Main function
@@ -24,24 +29,28 @@ import Html exposing (Attribute)
 -- TYPES
 
 
-{-| Contents is a union type holding the contents of the file read by the browser.
+{-| A union type holding the contents of the file read by the browser.
+Contents read with `readAsText` and `readAsDataURL` will be received as `TextFile String`.
 -}
 type Contents
     = TextFile String
-    | Blob Value
 
 
+{-| The types of messages received from the driver. `File id filename contents`
+-}
 type Msg
     = File String String Contents
 
 
 type alias FileOps msg =
     { readAsText : String -> Cmd msg
-    , readAsArrayBuffer : String -> Cmd msg
     , readAsDataURL : String -> Cmd msg
     }
 
 
+{-| A record with links to the functions that can be used to generate commands
+for the driver and a subscription for the replies from the driver.
+-}
 type alias Driver msg =
     { log : String -> Cmd msg
     , setTitle : String -> Cmd msg
@@ -55,6 +64,8 @@ type alias Driver msg =
 -- EVENT HELPERS
 
 
+{-| A helper for the FileReader part of the driver.
+-}
 onFileChange : msg -> Attribute msg
 onFileChange msg =
     on "change"
@@ -114,6 +125,10 @@ decodeMsg fail lift json =
 -- PUBLIC API
 
 
+{-| The `Config` record contains the output port, the input port a function to generate an error
+in case of port error and a function to lift the type of messages that can arrive from the driver to
+the Main Msg type.
+-}
 type alias Config msg =
     { output : Value -> Cmd msg
     , input : (Value -> msg) -> Sub msg
@@ -122,6 +137,8 @@ type alias Config msg =
     }
 
 
+{-| A function that will create the driver record.
+-}
 install : Config msg -> Driver msg
 install { output, input, fail, lift } =
     let
@@ -137,7 +154,6 @@ install { output, input, fail, lift } =
         , updateCss = \css -> encodeMsg "UpdateCss" (Encode.string css)
         , file =
             { readAsText = \id -> encodeMsg "FileReadAsText" (Encode.string id)
-            , readAsArrayBuffer = \id -> encodeMsg "FileReadAsDataURL" (Encode.string id)
             , readAsDataURL = \id -> encodeMsg "FileReadAsDataURL" (Encode.string id)
             }
         , subscriptions = input (decodeMsg fail lift)

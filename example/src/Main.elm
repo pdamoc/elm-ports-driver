@@ -71,13 +71,8 @@ update msg model =
         FileSelect id ->
             ( model, driver.file.readAsDataURL id )
 
-        PortsMsg pMsg ->
-            case pMsg of
-                PortsDriver.File id filename (PortsDriver.TextFile contents) ->
-                    ( { model | fileContents = Just contents }, Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )
+        PortsMsg (PortsDriver.File id filename (PortsDriver.TextFile contents)) ->
+            ( { model | fileContents = Just contents }, Cmd.none )
 
         UpdateCss css ->
             ( model, driver.updateCss css )
