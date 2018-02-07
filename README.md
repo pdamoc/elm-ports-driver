@@ -42,5 +42,4 @@ driver =
 
 The ports MUST BE named `input` and `output`.  
 
-Please see the `example` folder for a full example. 
-
+Please see the `example` folder for a full example. (Inside the `example` folder run `npm start`)
