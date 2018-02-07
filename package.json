@@ -1,0 +1,26 @@
+{
+  "name": "elm-ports-driver",
+  "version": "1.0.0",
+  "description": "Elm ports helper library",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pdamoc/elm-ports-driver.git"
+  },
+  "keywords": [
+    "elm",
+    "ports"
+  ],
+  "author": "Peter Damoc",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pdamoc/elm-ports-driver/issues"
+  },
+  "homepage": "https://github.com/pdamoc/elm-ports-driver#readme",
+  "dependencies": {
+    "elm": "^0.18.0"
+  }
+}
