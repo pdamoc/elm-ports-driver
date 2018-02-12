@@ -79,23 +79,53 @@ function readFile(method, input, id) {
 function toMsg(tag, payload) {
     return {"tag" : tag, "payload":payload}
 }
+ 
 
-function log_fallback(input, msg) {
-    console.log("Unknow message", msg)
+function merge(obj1, obj2) {
+  for (var attrname in obj2) { obj1[attrname] = obj2[attrname]; }
+  return obj1
 }
 
-function install(app) {
+function install(app, plugins) { 
+  var processor = plugins.reduce(function(accumulator, currentValue){ 
+    return merge(accumulator, currentValue)}, {})
     app.ports.output.subscribe(function (msg) {
-        command_processor(app.ports.input, msg, log_fallback);
+        var plugin = processor[msg.tag]
+        if (plugin === undefined){
+          console.log("Unknow message", msg);
+        }
+        else {
+          plugin(app.ports.input, msg.payload);
+        }
     })
 }
 
-function install_with_fallback(app, fallback) {
-    app.ports.output.subscribe(function (msg) {
-        command_processor(app.ports.input, msg, fallback);
-    })
+// PLUGINS 
+
+function file_reader(method) {
+  return function(input, id) {
+    readFile(method, input, id) 
+  }
 }
 
-exports.install = install 
-exports.install_with_fallback = install_with_fallback 
+function updateCss(input, payload) {
+  var elm_driver_css = document.getElementById('elm-ports-driver-css')
+  if (elm_driver_css == null) {
+      elm_driver_css = document.createElement('style');
+      elm_driver_css.type = 'text/css';
+      elm_driver_css.id = 'elm-ports-driver-css'
+      document.getElementsByTagName('head')[0].appendChild(elm_driver_css);
+  }
+
+  elm_driver_css.textContent = payload;
+}
+
+exports.install = install;
+exports.log = { "Log": function(input, payload){ console.log(payload) }};
+exports.set_title = { "SetTitle": function(input, payload){ document.title = payload }};
+exports.update_css = { "UpdateCss": updateCss };
+exports.file_reader = 
+  { "FileReadAsDataURL": file_reader("readAsDataURL")
+  , "FileReadAsTextFile": file_reader("readAsTextFile")
+  };
 

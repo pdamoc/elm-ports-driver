@@ -4,7 +4,8 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 import Ports
-import PortsDriver exposing (Driver)
+import PortsDriver exposing (Config)
+import Json.Encode as Encode
 
 
 -- APP
@@ -16,18 +17,22 @@ main =
         { init = ( model, Cmd.none )
         , update = update
         , view = view
-        , subscriptions = always driver.subscriptions
+        , subscriptions = subscriptions
         }
 
 
-driver : Driver Msg
-driver =
-    PortsDriver.install
-        { output = Ports.output
-        , input = Ports.input
-        , lift = PortsMsg
-        , fail = Fail
-        }
+config : Config Msg
+config =
+    { output = Ports.output
+    , input = Ports.input
+    , fail = Fail
+    }
+
+
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    PortsDriver.subscriptions config
+        [ PortsDriver.receiveFileAsDataURL ReceiveFile ]
 
 
 
@@ -52,30 +57,38 @@ model =
 
 
 type Msg
-    = Fail String
-    | SetTitle
+    = SetTitle
+    | Fail String
     | FileSelect ID
-    | PortsMsg PortsDriver.Msg
+    | ReceiveFile ID String String
     | UpdateCss String
+    | Log String
+    | MyLog String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Fail str ->
-            ( model, driver.log str )
+            ( model, PortsDriver.log config str )
 
         SetTitle ->
-            ( model, driver.setTitle "AWESOME!!!" )
+            ( model, PortsDriver.setTitle config "AWESOME!!!" )
 
         FileSelect id ->
-            ( model, driver.file.readAsDataURL id )
+            ( model, PortsDriver.readAsDataURL config id )
 
-        PortsMsg (PortsDriver.File id filename (PortsDriver.TextFile contents)) ->
+        ReceiveFile id filename contents ->
             ( { model | fileContents = Just contents }, Cmd.none )
 
         UpdateCss css ->
-            ( model, driver.updateCss css )
+            ( model, PortsDriver.updateCss config css )
+
+        Log str ->
+            ( model, PortsDriver.log config str )
+
+        MyLog str ->
+            ( model, PortsDriver.send config "MyLog" (Encode.string str) )
 
 
 
@@ -97,20 +110,32 @@ view model =
     in
         div [ class "container", style [ ( "margin-top", "30px" ), ( "text-align", "center" ) ] ]
             [ -- inline CSS (literal)
-              div [ class "row" ]
+              div [ class "row jumbotron" ]
                 [ div [ class "col-12" ]
-                    [ div [ class "jumbotron" ]
-                        [ img [ src imgContents, style styles.img ] [] -- inline CSS (via var)
-                        , p [] [ text ("Elm Ports Driver") ]
-                        , button [ class "btn btn-primary btn-lg ml-3", onClick SetTitle ]
-                            [ text "Set Title to AWESOME!"
-                            ]
-                        , button [ class "btn btn-primary btn-lg ml-3", onClick (UpdateCss makeBkgRed) ]
-                            [ text "Make Background Red"
-                            ]
-                        , button [ class "btn btn-primary btn-lg ml-3", onClick (UpdateCss makeBkgAqua) ]
-                            [ text "Make Background Aqua"
-                            ]
+                    [ img [ src imgContents, style styles.img ] [] -- inline CSS (via var)
+                    , p [] [ text ("Elm Ports Driver") ]
+                    , button [ class "btn btn-primary btn-lg ml-3", onClick SetTitle ]
+                        [ text "Set Title to AWESOME!"
+                        ]
+                    , button [ class "btn btn-primary btn-lg ml-3", onClick (UpdateCss makeBkgRed) ]
+                        [ text "Make Background Red"
+                        ]
+                    , button [ class "btn btn-primary btn-lg ml-3", onClick (UpdateCss makeBkgAqua) ]
+                        [ text "Make Background Aqua"
+                        ]
+                    ]
+                , div [ class "col-12 m-3" ]
+                    [ button
+                        [ class "btn btn-primary btn-lg ml-3"
+                        , onClick (Log "Hello!")
+                        ]
+                        [ text "Log Hello!"
+                        ]
+                    , button
+                        [ class "btn btn-primary btn-lg ml-3"
+                        , onClick (MyLog "Hello!")
+                        ]
+                        [ text "MyLog Hello!"
                         ]
                     ]
                 , div [ class "col-12" ]

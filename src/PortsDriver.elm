@@ -1,4 +1,23 @@
-module PortsDriver exposing (Driver, Config, Msg(..), Contents(..), FileOps, install, onFileChange)
+module PortsDriver
+    exposing
+        ( -- Types
+          Config
+        , ID
+          -- Commands
+        , log
+        , setTitle
+        , updateCss
+        , readAsText
+        , readAsDataURL
+        , send
+          -- Subscriptions
+        , inputDecoder
+        , receiveFileAsText
+        , receiveFileAsDataURL
+        , subscriptions
+          -- Event Helper
+        , onFileChange
+        )
 
 {-| This is an Elm package - npm package combo designed to be used to simplify
 some of the ports code usage.
@@ -6,7 +25,7 @@ some of the ports code usage.
 
 # Types
 
-@docs FileOps, Driver, Msg, Contents
+@docs Config, ID
 
 
 # Html.Event Helper
@@ -14,9 +33,25 @@ some of the ports code usage.
 @docs onFileChange
 
 
-# Main function
+# Commands without reply
 
-@docs Config, install
+These are the commands that will not produce a reply.
+
+@docs log, setTitle, updateCss, send
+
+
+# Commands with reply
+
+These are the commands that will cause a reply to be sent back to Elm.
+
+@docs readAsText, readAsDataURL
+
+
+# Subscriptions
+
+Decoders for the subscriptions.
+
+@docs inputDecoder, receiveFileAsText, receiveFileAsDataURL, subscriptions
 
 -}
 
@@ -29,38 +64,150 @@ import Html exposing (Attribute)
 -- TYPES
 
 
-{-| A union type holding the contents of the file read by the browser.
-Contents read with `readAsText` and `readAsDataURL` will be received as `TextFile String`.
+{-| The `Config` record contains the output port, the input port a function handle
+unknown input port messages. This record is needed for all the functions.
 -}
-type Contents
-    = TextFile String
-
-
-{-| The types of messages received from the driver. `File id filename contents`
--}
-type Msg
-    = File String String Contents
-
-
-{-| An alias for the operations of the file. Each function takes a String `id`
-that will be used to identify the input node.
--}
-type alias FileOps msg =
-    { readAsText : String -> Cmd msg
-    , readAsDataURL : String -> Cmd msg
+type alias Config msg =
+    { output : Value -> Cmd msg
+    , input : (Value -> msg) -> Sub msg
+    , fail : String -> msg
     }
 
 
-{-| A record with links to the functions that can be used to generate commands
-for the driver and a subscription for the replies from the driver.
+{-| An alias to make the type signatures more explicit
 -}
-type alias Driver msg =
-    { log : String -> Cmd msg
-    , setTitle : String -> Cmd msg
-    , updateCss : String -> Cmd msg
-    , file : FileOps msg
-    , subscriptions : Sub msg
-    }
+type alias ID =
+    String
+
+
+encodeMsg : String -> Value -> Config msg -> Cmd msg
+encodeMsg tag payload config =
+    Encode.object
+        [ ( "tag", Encode.string tag )
+        , ( "payload", payload )
+        ]
+        |> config.output
+
+
+{-| Logs the provided `String` to the Console.
+-}
+log : Config msg -> String -> Cmd msg
+log config text =
+    encodeMsg "Log" (Encode.string text) config
+
+
+{-| Generic function for sending messages to JavaScript.
+-}
+send : Config msg -> String -> Value -> Cmd msg
+send config tag value =
+    encodeMsg tag value config
+
+
+{-| Sets the provided `String` as the title of the page.
+-}
+setTitle : Config msg -> String -> Cmd msg
+setTitle config title =
+    encodeMsg "SetTitle" (Encode.string title) config
+
+
+{-| Updates the head node with a style node containing the value provided as a
+`String`.
+-}
+updateCss : Config msg -> String -> Cmd msg
+updateCss config css =
+    encodeMsg "UpdateCss" (Encode.string css) config
+
+
+{-| sends a read command for the node with the provided ID. The contents are
+read as text.
+-}
+readAsText : Config msg -> ID -> Cmd msg
+readAsText config id =
+    encodeMsg "FileReadAsText" (Encode.string id) config
+
+
+{-| sends a read command for the node with the provided ID. The contents are
+read as a dataURL.
+-}
+readAsDataURL : Config msg -> ID -> Cmd msg
+readAsDataURL config id =
+    encodeMsg "FileReadAsDataURL" (Encode.string id) config
+
+
+
+-- SUBSCRIPTIONS
+
+
+{-| The main subscription. Receives a list of decoders for the messages received
+from the input port.
+-}
+subscriptions : Config msg -> List (Decoder msg) -> Sub msg
+subscriptions config decoders =
+    let
+        inputDecoder json =
+            case Decode.decodeValue (Decode.oneOf decoders) json of
+                Ok msg ->
+                    msg
+
+                Err err ->
+                    config.fail err
+    in
+        config.input inputDecoder
+
+
+
+-- DECODERS
+
+
+tagDecoder : String -> Decoder String
+tagDecoder expected =
+    Decode.field "tag" Decode.string
+        |> Decode.andThen
+            (\inputTag ->
+                if inputTag == expected then
+                    Decode.succeed expected
+                else
+                    Decode.fail ""
+            )
+
+
+{-| Generic input decoder. Receives the tag of the message and a decoder for the
+payload of the message. Returns a decoder that can be used with `subscriptions`.
+-}
+inputDecoder : String -> Decoder msg -> Decoder msg
+inputDecoder tag payloadDecoder =
+    Decode.map2 always payloadDecoder (tagDecoder tag)
+
+
+fileDecoder : String -> (ID -> String -> String -> msg) -> Decoder msg
+fileDecoder method toMsg =
+    let
+        actualDecoder =
+            Decode.map3 toMsg
+                (Decode.field "id" Decode.string)
+                (Decode.field "filename" Decode.string)
+                (Decode.field "contents" Decode.string)
+                |> Decode.field "payload"
+    in
+        inputDecoder method actualDecoder
+
+
+{-| Decoder for the file reader `readAsText` command replay. The message creator
+receives the `ID` of the input node, the `filename` and the contents of the file
+as a `String`.
+-}
+receiveFileAsText : (ID -> String -> String -> msg) -> Decoder msg
+receiveFileAsText toMsg =
+    fileDecoder "FileReadAsText" toMsg
+
+
+{-| Decoder for the file reader `readAsDataURL` command replay. The message creator
+receives the `ID` of the input node, the `filename` and the contents of the file
+as a `String`.
+-}
+receiveFileAsDataURL : (ID -> String -> String -> msg) -> Decoder msg
+receiveFileAsDataURL toMsg =
+    fileDecoder "FileReadAsDataURL" toMsg
 
 
 
@@ -73,91 +220,3 @@ onFileChange : msg -> Attribute msg
 onFileChange msg =
     on "change"
         (Decode.succeed msg)
-
-
-
--- PRIVATE HELPERS
-
-
-toMsg : ( String, Value ) -> Decoder Msg
-toMsg ( tag, payload ) =
-    let
-        decodeFile toContents contentsDecoder =
-            let
-                actualDecoder =
-                    Decode.map3 File
-                        (Decode.field "id" Decode.string)
-                        (Decode.field "filename" Decode.string)
-                        (Decode.map toContents (Decode.field "contents" contentsDecoder))
-            in
-                case Decode.decodeValue actualDecoder payload of
-                    Ok msg ->
-                        Decode.succeed msg
-
-                    Err error ->
-                        Decode.fail error
-    in
-        case tag of
-            "FileReadAsDataURL" ->
-                decodeFile TextFile Decode.string
-
-            "FileReadAsText" ->
-                decodeFile TextFile Decode.string
-
-            _ ->
-                Decode.fail <| "unknown tag: " ++ tag
-
-
-inputDecoder : Decoder Msg
-inputDecoder =
-    Decode.map2 (,) (Decode.field "tag" Decode.string) (Decode.field "payload" Decode.value)
-        |> Decode.andThen toMsg
-
-
-decodeMsg : (String -> msg) -> (Msg -> msg) -> Value -> msg
-decodeMsg fail lift json =
-    case Decode.decodeValue inputDecoder json of
-        Ok msg ->
-            lift msg
-
-        Err error ->
-            fail error
-
-
-
--- PUBLIC API
-
-
-{-| The `Config` record contains the output port, the input port a function to generate an error
-in case of port error and a function to lift the type of messages that can arrive from the driver to
-the Main Msg type.
--}
-type alias Config msg =
-    { output : Value -> Cmd msg
-    , input : (Value -> msg) -> Sub msg
-    , fail : String -> msg
-    , lift : Msg -> msg
-    }
-
-
-{-| A function that will create the driver record.
--}
-install : Config msg -> Driver msg
-install { output, input, fail, lift } =
-    let
-        encodeMsg tag payload =
-            Encode.object
-                [ ( "tag", Encode.string tag )
-                , ( "payload", payload )
-                ]
-                |> output
-    in
-        { log = \text -> encodeMsg "Log" (Encode.string text)
-        , setTitle = \title -> encodeMsg "SetTitle" (Encode.string title)
-        , updateCss = \css -> encodeMsg "UpdateCss" (Encode.string css)
-        , file =
-            { readAsText = \id -> encodeMsg "FileReadAsText" (Encode.string id)
-            , readAsDataURL = \id -> encodeMsg "FileReadAsDataURL" (Encode.string id)
-            }
-        , subscriptions = input (decodeMsg fail lift)
-        }
