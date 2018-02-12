@@ -3,6 +3,7 @@ module PortsDriver
         ( -- Types
           Config
         , ID
+        , FileRef
           -- Commands
         , log
         , setTitle
@@ -10,13 +11,18 @@ module PortsDriver
         , readAsText
         , readAsDataURL
         , send
+        , localStorageGetItem
+        , localStorageSetItem
+        , localStorageRemoveItem
           -- Subscriptions
         , inputDecoder
         , receiveFileAsText
         , receiveFileAsDataURL
+        , receiveLocalStorageItem
+        , receiveLocalStorageChange
         , subscriptions
           -- Event Helper
-        , onFileChange
+        , onFile
         )
 
 {-| This is an Elm package - npm package combo designed to be used to simplify
@@ -25,39 +31,48 @@ some of the ports code usage.
 
 # Types
 
-@docs Config, ID
+@docs Config, ID, FileRef
 
 
 # Html.Event Helper
 
-@docs onFileChange
+@docs onFile
 
 
-# Commands without reply
+# FileReader API
+
+These are the commands that will cause a reply to be sent back to Elm.
+
+@docs readAsText, readAsDataURL
+@docs receiveFileAsText, receiveFileAsDataURL
+
+
+# LocalStorage API
+
+These are the commands that will cause a reply to be sent back to Elm.
+
+@docs localStorageGetItem, localStorageSetItem, localStorageRemoveItem
+@docs receiveLocalStorageItem, receiveLocalStorageChange
+
+
+# Other Commands
 
 These are the commands that will not produce a reply.
 
 @docs log, setTitle, updateCss, send
 
 
-# Commands with reply
-
-These are the commands that will cause a reply to be sent back to Elm.
-
-@docs readAsText, readAsDataURL
-
-
 # Subscriptions
 
 Decoders for the subscriptions.
 
-@docs inputDecoder, receiveFileAsText, receiveFileAsDataURL, subscriptions
+@docs inputDecoder, subscriptions
 
 -}
 
 import Json.Encode as Encode exposing (Value)
 import Json.Decode as Decode exposing (Decoder)
-import Html.Events exposing (on)
+import Html.Events exposing (on, onWithOptions)
 import Html exposing (Attribute)
 
 
@@ -80,6 +95,12 @@ type alias ID =
     String
 
 
+{-| An alias to make the type signatures more explicit
+-}
+type alias FileRef =
+    Value
+
+
 encodeMsg : String -> Value -> Config msg -> Cmd msg
 encodeMsg tag payload config =
     Encode.object
@@ -87,6 +108,10 @@ encodeMsg tag payload config =
         , ( "payload", payload )
         ]
         |> config.output
+
+
+
+-- COMMANDS
 
 
 {-| Logs the provided `String` to the Console.
@@ -118,20 +143,57 @@ updateCss config css =
     encodeMsg "UpdateCss" (Encode.string css) config
 
 
+encodeFileRef : ID -> FileRef -> Value
+encodeFileRef id fileRef =
+    Encode.object
+        [ ( "id", Encode.string id )
+        , ( "fileRef", fileRef )
+        ]
+
+
 {-| sends a read command for the node with the provided ID. The contents are
 read as text.
 -}
-readAsText : Config msg -> ID -> Cmd msg
-readAsText config id =
-    encodeMsg "FileReadAsText" (Encode.string id) config
+readAsText : Config msg -> ID -> FileRef -> Cmd msg
+readAsText config id fileRef =
+    encodeMsg "FileReadAsText" (encodeFileRef id fileRef) config
 
 
 {-| sends a read command for the node with the provided ID. The contents are
 read as a dataURL.
 -}
-readAsDataURL : Config msg -> ID -> Cmd msg
-readAsDataURL config id =
-    encodeMsg "FileReadAsDataURL" (Encode.string id) config
+readAsDataURL : Config msg -> ID -> FileRef -> Cmd msg
+readAsDataURL config id fileRef =
+    encodeMsg "FileReadAsDataURL" (encodeFileRef id fileRef) config
+
+
+{-| Sets the `localStorage` key to this value.
+-}
+localStorageSetItem : Config msg -> String -> String -> Cmd msg
+localStorageSetItem config key value =
+    let
+        payload =
+            Encode.object
+                [ ( "key", Encode.string key )
+                , ( "value", Encode.string value )
+                ]
+    in
+        encodeMsg "LocalStorageSetItem" payload config
+
+
+{-| Removes the `localStorage` key.
+-}
+localStorageRemoveItem : Config msg -> String -> Cmd msg
+localStorageRemoveItem config key =
+    encodeMsg "LocalStorageRemoveItem" (Encode.string key) config
+
+
+{-| Requests the value for the provided `key`. The value will arrive through the
+`receiveLocalStorageItem` subscription decoder.
+-}
+localStorageGetItem : Config msg -> String -> Cmd msg
+localStorageGetItem config key =
+    encodeMsg "LocalStorageGetItem" (Encode.string key) config
 
 
 
@@ -150,7 +212,7 @@ subscriptions config decoders =
                     msg
 
                 Err err ->
-                    config.fail err
+                    config.fail ("unknown message:" ++ toString json)
     in
         config.input inputDecoder
 
@@ -176,18 +238,17 @@ payload of the message. Returns a decoder that can be used with `subscriptions`.
 -}
 inputDecoder : String -> Decoder msg -> Decoder msg
 inputDecoder tag payloadDecoder =
-    Decode.map2 always payloadDecoder (tagDecoder tag)
+    Decode.map2 always (Decode.field "payload" payloadDecoder) (tagDecoder tag)
 
 
-fileDecoder : String -> (ID -> String -> String -> msg) -> Decoder msg
-fileDecoder method toMsg =
+fileMsgDecoder : String -> (ID -> String -> String -> msg) -> Decoder msg
+fileMsgDecoder method toMsg =
     let
         actualDecoder =
             Decode.map3 toMsg
                 (Decode.field "id" Decode.string)
                 (Decode.field "filename" Decode.string)
                 (Decode.field "contents" Decode.string)
-                |> Decode.field "payload"
     in
         inputDecoder method actualDecoder
 
@@ -198,7 +259,7 @@ as a `String`.
 -}
 receiveFileAsText : (ID -> String -> String -> msg) -> Decoder msg
 receiveFileAsText toMsg =
-    fileDecoder "FileReadAsText" toMsg
+    fileMsgDecoder "FileReadAsText" toMsg
 
 
 {-| Decoder for the file reader `readAsDataURL` command replay. The message creator
@@ -207,16 +268,42 @@ as a `String`.
 -}
 receiveFileAsDataURL : (ID -> String -> String -> msg) -> Decoder msg
 receiveFileAsDataURL toMsg =
-    fileDecoder "FileReadAsDataURL" toMsg
+    fileMsgDecoder "FileReadAsDataURL" toMsg
+
+
+{-| Decoder for the localStorage message after `localStorageGetItem`
+-}
+receiveLocalStorageItem : (String -> Maybe String -> msg) -> Decoder msg
+receiveLocalStorageItem toMsg =
+    let
+        actualDecoder =
+            Decode.map2 toMsg
+                (Decode.field "key" Decode.string)
+                (Decode.field "value" (Decode.maybe Decode.string))
+    in
+        inputDecoder "LocalStorageGetItem" actualDecoder
+
+
+{-| Decoder for the localStorage message received from listening for changes.
+-}
+receiveLocalStorageChange : (String -> Maybe String -> msg) -> Decoder msg
+receiveLocalStorageChange toMsg =
+    let
+        actualDecoder =
+            Decode.map2 toMsg
+                (Decode.field "key" Decode.string)
+                (Decode.field "value" (Decode.maybe Decode.string))
+    in
+        inputDecoder "LocalStorageChange" actualDecoder
 
 
 
 -- EVENT HELPERS
 
 
-{-| A helper for the FileReader part of the driver.
+{-| A helper for input elements with `type_ "file"`
 -}
-onFileChange : msg -> Attribute msg
-onFileChange msg =
+onFile : (FileRef -> msg) -> Attribute msg
+onFile toMsg =
     on "change"
-        (Decode.succeed msg)
+        (Decode.map toMsg (Decode.at [ "target", "files", "0" ] Decode.value))
