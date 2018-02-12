@@ -1,6 +1,6 @@
 {
   "name": "elm-ports-driver",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Elm ports helper library",
   "main": "index.js",
   "scripts": {
