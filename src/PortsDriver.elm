@@ -4,6 +4,7 @@ module PortsDriver
           Config
         , ID
         , FileRef
+        , FileData
           -- Commands
         , log
         , setTitle
@@ -31,7 +32,7 @@ some of the ports code usage.
 
 # Types
 
-@docs Config, ID, FileRef
+@docs Config, ID, FileRef, FileData
 
 
 # Html.Event Helper
@@ -99,6 +100,15 @@ type alias ID =
 -}
 type alias FileRef =
     Value
+
+
+{-| An alias to make the type signatures more explicit
+-}
+type alias FileData =
+    { id : ID
+    , filename : String
+    , contents : String
+    }
 
 
 encodeMsg : String -> Value -> Config msg -> Cmd msg
@@ -241,14 +251,15 @@ inputDecoder tag payloadDecoder =
     Decode.map2 always (Decode.field "payload" payloadDecoder) (tagDecoder tag)
 
 
-fileMsgDecoder : String -> (ID -> String -> String -> msg) -> Decoder msg
+fileMsgDecoder : String -> (FileData -> msg) -> Decoder msg
 fileMsgDecoder method toMsg =
     let
         actualDecoder =
-            Decode.map3 toMsg
+            Decode.map3 FileData
                 (Decode.field "id" Decode.string)
                 (Decode.field "filename" Decode.string)
                 (Decode.field "contents" Decode.string)
+                |> Decode.map toMsg
     in
         inputDecoder method actualDecoder
 
@@ -257,7 +268,7 @@ fileMsgDecoder method toMsg =
 receives the `ID` of the input node, the `filename` and the contents of the file
 as a `String`.
 -}
-receiveFileAsText : (ID -> String -> String -> msg) -> Decoder msg
+receiveFileAsText : (FileData -> msg) -> Decoder msg
 receiveFileAsText toMsg =
     fileMsgDecoder "FileReadAsText" toMsg
 
@@ -266,7 +277,7 @@ receiveFileAsText toMsg =
 receives the `ID` of the input node, the `filename` and the contents of the file
 as a `String`.
 -}
-receiveFileAsDataURL : (ID -> String -> String -> msg) -> Decoder msg
+receiveFileAsDataURL : (FileData -> msg) -> Decoder msg
 receiveFileAsDataURL toMsg =
     fileMsgDecoder "FileReadAsDataURL" toMsg
 

@@ -35,7 +35,5 @@
     "webpack-dev-server": "^2.4.2",
     "webpack-merge": "^4.1.0"
   },
-  "dependencies": {
-    "elm-ports-driver": "^2.0.0" 
-  }
+  "dependencies": {}
 }

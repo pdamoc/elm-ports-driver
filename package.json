@@ -20,7 +20,5 @@
     "url": "https://github.com/pdamoc/elm-ports-driver/issues"
   },
   "homepage": "https://github.com/pdamoc/elm-ports-driver#readme",
-  "dependencies": {
-    "elm": "^0.18.0"
-  }
+  "dependencies": {}
 }

@@ -4,7 +4,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 import Ports
-import PortsDriver exposing (Config, FileRef)
+import PortsDriver exposing (Config, FileRef, FileData)
 import Json.Encode as Encode
 import Json.Decode as Decode exposing (Decoder, Value)
 
@@ -86,7 +86,7 @@ type Msg
     = SetTitle
     | Fail String
     | FileSelect ID FileRef
-    | ReceiveFile ID String String
+    | ReceiveFile FileData
     | UpdateCss String
     | Log String
     | MyLog String
@@ -110,7 +110,7 @@ update msg model =
         FileSelect id value ->
             ( model, PortsDriver.readAsDataURL config id value )
 
-        ReceiveFile id filename contents ->
+        ReceiveFile { id, filename, contents } ->
             ( { model | fileContents = Just contents }, Cmd.none )
 
         UpdateCss css ->
